@@ -33,8 +33,7 @@ library(shinythemes)
 library(shinydashboard)
 
 # Load Data ----
-setwd("D:/Works/plotting R")
-load("D:/Works/plotting R/Neo.RData")
+load("Neo.RData")
 geo <- readRDS("TBDC_border_sf.RDS")
 bor_trn <- geo[[1]]
 bor_nat <- geo[[2]]
