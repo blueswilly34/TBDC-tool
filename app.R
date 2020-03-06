@@ -33,7 +33,7 @@ library(shinythemes)
 library(shinydashboard)
 
 # Load Data ----
-load("Neo.RData")
+load("B01B02B05.RData")
 geo <- readRDS("TBDC_border_sf.RDS")
 bor_trn <- geo[[1]]
 bor_nat <- geo[[2]]
@@ -63,8 +63,11 @@ ui <- dashboardPage(
                         sidebarLayout(
                           sidebarPanel(
                             selectInput("trend_cause", label = h3("Cause_name"),
-                                        choices = levels(demo$cause_name),
-                                        selected = "Colon and rectum cancer",multiple = TRUE),
+                                        choices = levels(demo$level_cause),
+                                        selected = levels(demo$level_cause)[1],multiple = TRUE),
+                            selectInput("trend_sex", label = h3("Sex"),
+                                        choices = c("Female","Male","Total"),
+                                        selected = "Total"),
                             selectInput("trend_ind", label = h3("Measure"),
                                         choices = c("Prevalence","Deaths","YLDs","YLLs","DALYs"),
                                         selected = 1),
@@ -73,7 +76,7 @@ ui <- dashboardPage(
                             selectInput("trend_stand", label = h3("Adjust"),
                                         choices = c("Crude","Age-standardized"),selected = 1),
                             width = 3
-                            ),
+                          ),
                           
                           mainPanel(plotOutput(outputId = "linePlot", 
                                                width = "1080px", height = "720px"))))
@@ -111,11 +114,14 @@ ui <- dashboardPage(
                         sidebarLayout(
                           sidebarPanel(
                             selectInput("geo_cause", label = h3("Cause_name"),
-                                        choices = levels(demo$cause_name),
-                                        selected = "Colon and rectum cancer"),
+                                        choices = levels(demo$level_cause),
+                                        selected = levels(demo$level_cause)[1]),
                             selectInput("geo_geo", label = h3("Level"),
                                         choices = c("City","Town"),
                                         selected = "Town"),
+                            selectInput("geo_sex", label = h3("Sex"),
+                                        choices = c("Female","Male","Total"),
+                                        selected = "Total"),
                             sliderInput("geo_year","Year:",min = 2000,max = 2016,value = 2016),
                             selectInput("geo_ind", label = h3("Measure"),
                                         choices = c("Prevalence","Deaths","YLDs","YLLs","DALYs"),
@@ -126,14 +132,14 @@ ui <- dashboardPage(
                           ),
                           mainPanel(plotOutput(outputId = "geoPlot", 
                                                width = "1080px", height = "720px")))))))
-  )
+)
 
 # Server forming ----
 server <- function(input, output, session) {
   #Trend
   output$linePlot <- renderPlot({
     #####First step. cause and index#####
-    tmp <- subset(demo, demo$cause_name%in%input$trend_cause&demo$Year!=2017)
+    tmp <- subset(demo, demo$level_cause%in%input$trend_cause&demo$Year!=2017&demo$Sex%in%input$trend_sex)
     tmp$index <- tmp[,input$trend_ind]
     tmp <- tmp[,-7:-11]
     
@@ -177,7 +183,7 @@ server <- function(input, output, session) {
       return(t3)
     }
     
-
+    
     fs <- switch(input$trend_stand, "Crude" = f_crude, "Age-standardized" = f_st)
     
     tmp <-fs(tmp)
@@ -186,7 +192,7 @@ server <- function(input, output, session) {
     ggplot(data=tmp, aes(x=Year, y=index, colour = cause_name)) +
       geom_line(size = 1) + geom_point(size = 3) + 
       scale_colour_brewer(palette='Dark2')+
-      labs(title=input$trend_cause, subtitle=input$trend_ind, x="Year", y=input$trend_units, 
+      labs(title=input$trend_ind, subtitle=input$trend_sex , x="Year", y=input$trend_units, 
            caption=input$trend_stand) + expand_limits(y = 0) +
       theme(
         text = element_text(),
@@ -197,7 +203,7 @@ server <- function(input, output, session) {
         
         panel.background = element_rect(fill = '#f2f2f2',colour = NA ),
         #  panel.border = element_rect(colour = NA),
-        panel.grid.major = element_line(colour="DarkGray",linetype = "dotted",size = 0.5),#背景格線
+        panel.grid.major = element_line(colour="DarkGray",linetype = "dotted",size = 0.5),#???景??????
         panel.grid.major.x = element_line(colour="DarkGray",linetype = "dotted",size = 0.5),
         panel.grid.minor = element_blank(),
         
@@ -205,7 +211,7 @@ server <- function(input, output, session) {
         axis.title.x = element_text(vjust = 0, size = 13),
         axis.title.y = element_text(hjust = 0.5, vjust = 2.5,angle = 90, size = 13),
         axis.text.x = element_text(hjust = 0.5, angle = 0, size = 10), 
-        axis.line = element_line(colour="black"),#坐標軸顏色
+        axis.line = element_line(colour="black"),#??????軸顏色
         axis.ticks = element_line(),
         
         legend.position = "bottom",
@@ -216,14 +222,14 @@ server <- function(input, output, session) {
         strip.background=element_rect(colour="#f0f0f0",fill="#f0f0f0"),
         strip.text = element_text(face="bold")
       )
- 
+    
     
   })
   
   output$geoPlot <- renderPlot({
     
-    tmp <- subset(demo, demo$town%in%bor_trn$TownshipMOH_ID&
-                    demo$cause_name%in%input$geo_cause&demo$Year==input$geo_year)
+    tmp <- subset(demo, demo$town%in%bor_trn$TownshipMOH_ID&demo$Sex%in%input$geo_sex&
+                    demo$level_cause%in%input$geo_cause&demo$Year==input$geo_year)
     tmp$index <- tmp[,input$geo_ind] #index
     tmp <- tmp[,-7:-11]
     tmp <- aggregate(cbind(index, population)~cause_name+Year+town+Age_group+stand_percent, tmp, sum)
@@ -318,21 +324,21 @@ server <- function(input, output, session) {
     for (i in 1:6) {
       quan_names[i] <- c(paste(round(quan[i],digits = 2),round(quan[i+1],digits = 2),sep = " - "))
     }
-      quan_names[7] <- c(paste(round(quan[7],digits = 2),"Inf",sep = " - "))
+    quan_names[7] <- c(paste(round(quan[7],digits = 2),"Inf",sep = " - "))
     
     ggplot()+
       geom_sf(data = tmp, aes(fill=rank))+
-      labs(title=input$geo_cause, subtitle = paste(input$geo_ind,input$geo_year))+
+      labs(title=paste(input$geo_cause,input$geo_sex,sep = " - "), subtitle = paste(input$geo_ind,input$geo_year))+
       scale_fill_manual(values = c("#ffff99","#ffd982","#ffbf73","#ff995c","#ff7345", "#d11a0f", "#9e0d08"),
                         labels = quan_names,
                         paste(input$geo_stand,"Rate"))+
-    theme(plot.title = element_text(face = "bold",size = rel(2), hjust = 0.45, vjust = 0.5),
-          plot.subtitle = element_text(size = rel(1.5), hjust = 0.45, vjust = 0.5),
-          legend.title = element_text(face="bold",size = rel(1.5))
-          )
+      theme(plot.title = element_text(face = "bold",size = rel(2), hjust = 0.45, vjust = 0.5),
+            plot.subtitle = element_text(size = rel(1.5), hjust = 0.45, vjust = 0.5),
+            legend.title = element_text(face="bold",size = rel(1.5))
+      )
     
   })
- 
+  
 }
 
 shinyApp(ui, server)
